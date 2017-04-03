@@ -18,7 +18,7 @@ $sm = $db->getSchemaManager();
 
 $tables = $sm->listTables();
 
-foreach ($tables as $table){
+foreach ($tables as $table) {
     var_dump($table);
 }
 

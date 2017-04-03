@@ -22,46 +22,49 @@ class HomelyCli
         $this->namespace = $namespace;
     }
 
-    public function setModelDir($dir){
+    public function setModelDir($dir)
+    {
         $this->modelDir = $dir;
     }
 
-    public function overwriteModel($overwriteModel = true){
+    public function overwriteModel($overwriteModel = true)
+    {
         $this->overwriteModel = $overwriteModel;
     }
 
-    public function run(){
+    public function run()
+    {
         $sm = $this->db->getSchemaManager();
         $tables = $sm->listTables();
 
         $template = file_get_contents('src/TemplateModel.php');
 
-        if(!is_dir($this->modelDir)){
-            mkdir($this->modelDir,0775,true);
+        if (!is_dir($this->modelDir)) {
+            mkdir($this->modelDir, 0775, true);
         }
 
         /** @var \Doctrine\DBAL\Schema\Table $table */
-        foreach ($tables as $table){
+        foreach ($tables as $table) {
             $fileName = $this->modelDir.'/'.$table->getName().'Model.php';
 
-            if(!is_file($fileName) || $this->overwriteModel){
+            if (!is_file($fileName) || $this->overwriteModel) {
                 $content = "";
 
                 /** @var \Doctrine\DBAL\Schema\Column $column */
-                foreach ($table->getColumns() as $column){
+                foreach ($table->getColumns() as $column) {
                     $content .= '    public $'.$column->getName().";\n\n";
                 }
 
-                $content = str_replace('//fields',$content,$template);
-                $content = str_replace('Template',ucfirst($table->getName()), $content);
+                $content = str_replace('//fields', $content, $template);
+                $content = str_replace('Template', ucfirst($table->getName()), $content);
 
-                if($this->namespace){
+                if ($this->namespace) {
                     $content = str_replace('templateNamespace', $this->namespace, $content);
-                }else{
+                } else {
                     $content = str_replace("namespace templateNamespace;\n", '', $content);
                 }
 
-                file_put_contents($fileName,$content);
+                file_put_contents($fileName, $content);
             }
         }
     }

@@ -5,5 +5,5 @@ use HomelyDb\HomelyModel;
 
 class TemplateModel extends HomelyModel
 {
-//fields
+    //fields
 }

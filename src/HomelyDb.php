@@ -7,9 +7,9 @@ use Doctrine\DBAL\DriverManager;
 class HomelyDb
 {
     /** @var \Doctrine\DBAL\Connection */
-    static private $connection;
+    private static $connection;
 
-    static private $instance;
+    private static $instance;
 
     /**
      * @param array $params
@@ -25,13 +25,18 @@ class HomelyDb
     }
 
     /** @return \Doctrine\DBAL\Connection */
-    public static function getConnection(){
+    public static function getConnection()
+    {
         return self::$connection;
     }
 
-    private function __clone(){}
+    private function __clone()
+    {
+    }
 
-    private function __wakeup(){}
+    private function __wakeup()
+    {
+    }
 
     protected function __construct($params)
     {

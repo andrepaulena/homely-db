@@ -52,11 +52,11 @@ class HomelyCli
 
                 /** @var \Doctrine\DBAL\Schema\Column $column */
                 foreach ($table->getColumns() as $column) {
-                    $content .= '    public $'.$column->getName().";\n\n";
+                    $content .= '    public $'.$this->toCamelCase($column->getName()).";\n\n";
                 }
 
                 $content = str_replace('//fields', $content, $template);
-                $content = str_replace('Template', ucfirst($table->getName()), $content);
+                $content = str_replace('Template', ucfirst($this->toCamelCase($table->getName())), $content);
 
                 if ($this->namespace) {
                     $content = str_replace('templateNamespace', $this->namespace, $content);
@@ -67,5 +67,14 @@ class HomelyCli
                 file_put_contents($fileName, $content);
             }
         }
+    }
+
+    private function toCamelCase($string)
+    {
+        $string = str_replace('_', ' ', $string);
+        $string = lcfirst(ucwords($string));
+        $string = str_replace(' ', '', $string);
+
+        return $string;
     }
 }

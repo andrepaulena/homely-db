@@ -45,8 +45,9 @@ class HomelyModel
     {
         $class = get_called_class();
         $class = (substr_replace($class, '', 0, strrpos($class, '\\') + 1));
+        $class = str_replace('Model', '', $class);
 
-        return str_replace('Model', '', $class);
+        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $class));
     }
 
     public function getTableName()

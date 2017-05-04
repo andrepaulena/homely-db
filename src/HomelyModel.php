@@ -62,7 +62,7 @@ class HomelyModel
 
     public function save()
     {
-        $data = array_filter($this->toArray());
+        $data = array_filter($this->toSave());
 
         if (isset($data[$this->primaryKey])) {
             return $this->db->update($this->tableName, $data, [$this->primaryKey => $data[$this->primaryKey]]);
@@ -71,9 +71,15 @@ class HomelyModel
         return $this->db->insert($this->tableName, $data);
     }
 
-    public function delete($value)
+    public function delete($where = [])
     {
-        return $this->db->delete($this->tableName, [$this->primaryKey => $value]);
+        if (empty($where) && $this->{$this->primaryKey} != null) {
+            $where = [$this->primaryKey => $this->{$this->primaryKey}];
+        } elseif ($this->{$this->primaryKey} == null) {
+            throw new \Exception("Where clause must be defined");
+        }
+
+        return $this->db->delete($this->tableName, $where);
     }
 
     public function getAll($criteria = '*')
@@ -134,8 +140,7 @@ class HomelyModel
             }
         }
 
-        if($returnArray)
-        {
+        if ($returnArray) {
             return $result;
         }
 
@@ -222,11 +227,16 @@ class HomelyModel
             throw new \Exception("The parameter must be an array");
         }
 
+        /** @var HomelyModel $class */
+        $class =  clone $this;
+
         foreach ($data as $attr => $value) {
-            $this->{$attr} = $value;
+            $classAttr = $class->toCamelCase($attr);
+
+            $class->{$classAttr} = $value;
         }
 
-        return $this;
+        return $class;
     }
 
     public function toArray()
@@ -237,6 +247,21 @@ class HomelyModel
 
         foreach ($fields as $field) {
             $return[$field->name] = $this->{$field->name};
+        }
+
+        return $return;
+    }
+
+    protected function toSave()
+    {
+        $fields = $this->getReflectionClass($this)->getProperties(\ReflectionProperty::IS_PUBLIC);
+
+        $return = [];
+
+        foreach ($fields as $field) {
+            $key = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $field->name));
+
+            $return[$key] = $this->{$field->name};
         }
 
         return $return;
@@ -298,5 +323,14 @@ class HomelyModel
     private function getReflectionClass($class)
     {
         return new \ReflectionClass($class);
+    }
+
+    private function toCamelCase($string)
+    {
+        $string = str_replace('_', ' ', $string);
+        $string = lcfirst(ucwords($string));
+        $string = str_replace(' ', '', $string);
+
+        return $string;
     }
 }

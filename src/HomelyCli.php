@@ -45,7 +45,7 @@ class HomelyCli
 
         /** @var \Doctrine\DBAL\Schema\Table $table */
         foreach ($tables as $table) {
-            $fileName = $this->modelDir.'/'.$table->getName().'Model.php';
+            $fileName = $this->modelDir.'/'.ucfirst($table->getName()).'Model.php';
 
             if (!is_file($fileName) || $this->overwriteModel) {
                 $content = "";

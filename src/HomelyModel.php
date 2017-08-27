@@ -1,6 +1,8 @@
 <?php
 namespace HomelyDb;
 
+use HomelyDb\Exceptions\HomelyException;
+
 class HomelyModel
 {
     private $db;
@@ -11,13 +13,19 @@ class HomelyModel
 
     private $hasMany = [];
 
-    /** @return HomelyModel */
-    public function __construct()
+    /**
+     * @param array $data
+     */
+    public function __construct($data = [])
     {
         $this->db = HomelyDb::getConnection();
 
         if (!$this->tableName) {
             $this->tableName = $this->tableNameFactory();
+        }
+
+        if (!empty($data)) {
+            $this->populateFromArray($data);
         }
 
         $this->init();
@@ -62,13 +70,29 @@ class HomelyModel
 
     public function save()
     {
-        $data = array_filter($this->toSave());
-
         if (isset($data[$this->primaryKey])) {
-            return $this->db->update($this->tableName, $data, [$this->primaryKey => $data[$this->primaryKey]]);
+            if (property_exists($this, 'updatedAt')) {
+                $this->updatedAt = date('Y-m-d H:i:s');
+            }
+
+            $data = $this->toSave();
+
+            return $this->getDb()->update($this->tableName, $data, [$this->primaryKey => $data[$this->primaryKey]]);
         }
 
-        return $this->db->insert($this->tableName, $data);
+        if (property_exists($this, 'createdAt')) {
+            $this->createdAt = date('Y-m-d H:i:s');
+        }
+
+        $data = $this->toSave();
+
+        if ($this->getDb()->insert($this->tableName, $data)) {
+            $this->{$this->primaryKey} = $this->getLastId();
+
+            return true;
+        }
+
+        return false;
     }
 
     public function delete($where = [])
@@ -76,7 +100,7 @@ class HomelyModel
         if (empty($where) && $this->{$this->primaryKey} != null) {
             $where = [$this->primaryKey => $this->{$this->primaryKey}];
         } elseif ($this->{$this->primaryKey} == null) {
-            throw new \Exception("Where clause must be defined");
+            throw new HomelyException("Where clause must be defined");
         }
 
         return $this->db->delete($this->tableName, $where);
@@ -109,7 +133,11 @@ class HomelyModel
                 $this->tableName.'.'.$class['primaryId'].' = '.$class['class']->getTableName().'.'.$class['referencedId']
             );
 
-            $tableNames[$class['class']->getTableName()] = $class['class']->getTableName().'__'.$class['class']->getPrimaryKey();
+            $tableNames[$class['class']->getTableName()] = [
+                'primaryKeyMapped' => $class['class']->getTableName().'__'.$class['class']->getPrimaryKey(),
+                'primaryKey' => $class['class']->getPrimaryKey(),
+                'class' => &$class['class']
+            ];
         }
 
         $data = $data->execute()->fetchAll();
@@ -127,38 +155,44 @@ class HomelyModel
                 } else {
                     $manyTableField = lcfirst($table[0]);
 
-                    $result[$row[$primaryKeyIndex]][$manyTableField][$row[$tableNames[$table[0]]]][$table[1]] = $value;
+                    if (($tableNames[$table[0]]['primaryKey'] == $table[1]) && $value == null) {
+                        $result[$row[$primaryKeyIndex]][$manyTableField] = [];
+                        break;
+                    }
+
+                    $result[$row[$primaryKeyIndex]][$manyTableField][$row[$tableNames[$table[0]]['primaryKeyMapped']]][$table[1]] = $value;
                 }
             }
         }
 
-        foreach ($result as &$row) {
-            foreach ($tableNames as $key => $tableName) {
-                $manyTableField = lcfirst($table[0]);
+        if ($returnArray) {
+            foreach ($result as &$row) {
+                foreach ($tableNames as $key => $tableName) {
+                    $manyTableField = lcfirst($key);
+                    $row[$manyTableField] = array_values($row[$manyTableField]);
+                }
+            }
 
-                $row[$manyTableField] = array_values($row[$manyTableField]);
+            return array_values($result);
+        }
+
+        foreach ($result as &$row) {
+            $row = clone($this)->populateFromArray($row);
+
+            foreach ($tableNames as $key => $tableName) {
+                $manyTableField = lcfirst($key);
+
+                $joins = array_map(function ($object) use ($tableName) {
+                    $object = clone($tableName['class'])->populateFromArray($object);
+
+                    return $object;
+                }, array_values($row->{$manyTableField}));
+
+                $row->{$manyTableField} = $joins;
             }
         }
 
-        if ($returnArray) {
-            return $result;
-        }
-
-
-        var_dump(array_values($result));
-//        var_dump($data);
-        exit;
-
-
-
-
-//
-//            ->execute()
-//            ->fetchAll();
-
-        var_dump($this->hasMany);
-        var_dump($data);
-        exit;
+        return array_values($result);
     }
 
     public function prepareFields()
@@ -166,6 +200,7 @@ class HomelyModel
         $fields = array_keys($this->toArray());
 
         foreach ($fields as &$field) {
+            $field = $this->toUnderScoreCase($field);
             $field = $this->getTableName().'.'.$field .' as '.$this->tableName.'__'.$field;
         }
 
@@ -224,7 +259,7 @@ class HomelyModel
     public function populateFromArray($data)
     {
         if (!is_array($data)) {
-            throw new \Exception("The parameter must be an array");
+            throw new HomelyException("The parameter must be an array");
         }
 
         /** @var HomelyModel $class */
@@ -259,7 +294,7 @@ class HomelyModel
         $return = [];
 
         foreach ($fields as $field) {
-            $key = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $field->name));
+            $key = $this->toUnderScoreCase($field->name);
 
             $return[$key] = $this->{$field->name};
         }
@@ -271,7 +306,7 @@ class HomelyModel
     {
         if (!isset($this->hasMany[$className])) {
             if (!class_exists($className)) {
-                throw new \Exception("Class {$className} not found");
+                throw new HomelyException("Class {$className} not found");
             }
 
             /** @var HomelyModel $class */
@@ -282,7 +317,7 @@ class HomelyModel
             }
 
             if ($referencedId == null) {
-                $referencedId = $this->tableName.ucfirst($class->getPrimaryKey());
+                $referencedId = $this->tableName.'_'.$class->getPrimaryKey();
             }
 
             $this->hasMany[$className] = [
@@ -316,6 +351,21 @@ class HomelyModel
         return $class->allToModel($data);
     }
 
+    public function beginTransaction()
+    {
+        $this->db->beginTransaction();
+    }
+
+    public function commit()
+    {
+        $this->db->commit();
+    }
+
+    public function rollBack()
+    {
+        $this->db->rollBack();
+    }
+
     /**
      * @param $class
      * @return \ReflectionClass
@@ -332,5 +382,24 @@ class HomelyModel
         $string = str_replace(' ', '', $string);
 
         return $string;
+    }
+
+    private function toUnderScoreCase($string)
+    {
+        return strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $string));
+    }
+
+    public function getLastId()
+    {
+        $queryBuilder = $this->getQueryBuilder();
+
+        $result = $queryBuilder->select($this->primaryKey)
+            ->from($this->tableName)
+            ->setFirstResult(0)->setMaxResults(1)
+            ->orderBy($this->primaryKey, 'DESC')
+            ->execute()
+            ->fetch();
+
+        return $result[$this->primaryKey];
     }
 }

@@ -177,7 +177,7 @@ class HomelyModel
         }
 
         foreach ($result as &$row) {
-            $row = clone($this)->populateFromArray($row);
+            $row = clone($this)->populateFromDb($row);
 
             foreach ($tableNames as $key => $tableName) {
                 $manyTableField = lcfirst($key);
@@ -210,7 +210,7 @@ class HomelyModel
     public function allToModel($data)
     {
         return array_map(function ($row) {
-            return $this->populateFromArray($row);
+            return $this->populateFromDb($row);
         }, $data);
     }
 
@@ -239,7 +239,7 @@ class HomelyModel
             ->execute()
             ->fetch();
 
-        return $this->populateFromArray($data);
+        return $this->populateFromDb($data);
     }
 
     public function insert($data)
@@ -256,7 +256,20 @@ class HomelyModel
         return $this->db->update($this->tableName, $data, $criteria);
     }
 
-    public function populateFromArray($data)
+    protected function populateFromArray($data)
+    {
+        if (!is_array($data)) {
+            throw new HomelyException("The parameter must be an array");
+        }
+
+        foreach ($data as $attr => $value) {
+            $this->{$attr} = $value;
+        }
+
+        return $this;
+    }
+
+    protected function populateFromDb($data)
     {
         if (!is_array($data)) {
             throw new HomelyException("The parameter must be an array");

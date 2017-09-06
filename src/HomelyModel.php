@@ -256,7 +256,7 @@ class HomelyModel
         return $this->db->update($this->tableName, $data, $criteria);
     }
 
-    protected function populateFromArray($data)
+    public function populateFromArray($data)
     {
         if (!is_array($data)) {
             throw new HomelyException("The parameter must be an array");

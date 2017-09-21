@@ -70,21 +70,21 @@ class HomelyModel
 
     public function save()
     {
-        if (isset($data[$this->primaryKey])) {
-            if (property_exists($this, 'updatedAt')) {
-                $this->updatedAt = date('Y-m-d H:i:s');
-            }
+        $data = $this->toSave();
 
-            $data = $this->toSave();
+        if (isset($data[$this->primaryKey]) && !empty($data[$this->primaryKey])) {
+            if (property_exists($this, 'updatedAt')) {
+                $data['updatedAt'] = date('Y-m-d H:i:s');
+            }
 
             return $this->getDb()->update($this->tableName, $data, [$this->primaryKey => $data[$this->primaryKey]]);
         }
 
-        if (property_exists($this, 'createdAt')) {
-            $this->createdAt = date('Y-m-d H:i:s');
-        }
+        unset($data[$this->primaryKey]);
 
-        $data = $this->toSave();
+        if (property_exists($this, 'createdAt')) {
+            $data['createdAt'] = date('Y-m-d H:i:s');
+        }
 
         if ($this->getDb()->insert($this->tableName, $data)) {
             $this->{$this->primaryKey} = $this->getLastId();

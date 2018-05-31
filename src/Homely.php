@@ -1,17 +1,16 @@
 <?php
 namespace HomelyDb;
 
+use Doctrine\DBAL\FetchMode;
 use HomelyDb\Exceptions\HomelyException;
 
-class HomelyModel
+class Homely
 {
     private $db;
 
     protected $tableName;
 
     protected $primaryKey = 'id';
-
-    private $hasMany = [];
 
     /**
      * @param array $data
@@ -74,7 +73,7 @@ class HomelyModel
 
         if (isset($data[$this->primaryKey]) && !empty($data[$this->primaryKey])) {
             if (property_exists($this, 'updatedAt')) {
-                $data['updatedAt'] = date('Y-m-d H:i:s');
+                $data['updated_at'] = date('Y-m-d H:i:s');
             }
 
             return $this->getDb()->update($this->tableName, $data, [$this->primaryKey => $data[$this->primaryKey]]);
@@ -83,7 +82,7 @@ class HomelyModel
         unset($data[$this->primaryKey]);
 
         if (property_exists($this, 'createdAt')) {
-            $data['createdAt'] = date('Y-m-d H:i:s');
+            $data['created_at'] = date('Y-m-d H:i:s');
         }
 
         if ($this->getDb()->insert($this->tableName, $data)) {
@@ -117,82 +116,6 @@ class HomelyModel
             ->fetchAll();
 
         return $this->allToModel($data);
-    }
-
-    public function getAllWithRelations($returnArray = false)
-    {
-        $data = $this->getQueryBuilder()->select($this->prepareFields())->from($this->tableName);
-        $tableNames = [];
-
-        foreach ($this->hasMany as &$class) {
-            $data->addSelect($class['class']->prepareFields());
-            $data->leftJoin(
-                $this->tableName,
-                $class['class']->getTableName(),
-                $class['class']->getTableName(),
-                $this->tableName.'.'.$class['primaryId'].' = '.$class['class']->getTableName().'.'.$class['referencedId']
-            );
-
-            $tableNames[$class['class']->getTableName()] = [
-                'primaryKeyMapped' => $class['class']->getTableName().'__'.$class['class']->getPrimaryKey(),
-                'primaryKey' => $class['class']->getPrimaryKey(),
-                'class' => &$class['class']
-            ];
-        }
-
-        $data = $data->execute()->fetchAll();
-
-        $primaryKeyIndex = $this->getTableName().'__'.$this->getPrimaryKey();
-
-        $result = [];
-
-        foreach ($data as $row) {
-            foreach ($row as $key => $value) {
-                $table = explode('__', $key);
-
-                if ($table[0] == $this->getTableName()) {
-                    $result[$row[$primaryKeyIndex]][$table[1]] = $value;
-                } else {
-                    $manyTableField = lcfirst($table[0]);
-
-                    if (($tableNames[$table[0]]['primaryKey'] == $table[1]) && $value == null) {
-                        $result[$row[$primaryKeyIndex]][$manyTableField] = [];
-                        break;
-                    }
-
-                    $result[$row[$primaryKeyIndex]][$manyTableField][$row[$tableNames[$table[0]]['primaryKeyMapped']]][$table[1]] = $value;
-                }
-            }
-        }
-
-        if ($returnArray) {
-            foreach ($result as &$row) {
-                foreach ($tableNames as $key => $tableName) {
-                    $manyTableField = lcfirst($key);
-                    $row[$manyTableField] = array_values($row[$manyTableField]);
-                }
-            }
-
-            return array_values($result);
-        }
-
-        foreach ($result as &$row) {
-            $row = clone($this)->populateFromDb($row);
-
-            foreach ($tableNames as $key => $tableName) {
-                $manyTableField = lcfirst($key);
-
-                $joins = array_map(function ($object) use ($tableName) {
-                    $object = clone($tableName['class'])->populateFromArray($object);
-
-                    return $object;
-                }, array_values($row->{$manyTableField}));
-
-                $row->{$manyTableField} = $joins;
-            }
-        }
-
-        return array_values($result);
     }
 
     public function prepareFields()
@@ -239,7 +162,11 @@ class HomelyModel
             ->execute()
             ->fetch();
 
-        return $this->populateFromDb($data);
+        if ($data) {
+            return $this->populateFromDb($data);
+        }
+
+        return false;
     }
 
     public function insert($data)
@@ -275,7 +202,7 @@ class HomelyModel
             throw new HomelyException("The parameter must be an array");
         }
 
-        /** @var HomelyModel $class */
+        /** @var Homely $class */
         $class =  clone $this;
 
         foreach ($data as $attr => $value) {
@@ -313,55 +240,6 @@ class HomelyModel
         }
 
         return $return;
-    }
-
-    protected function setHasMany($className, $primaryId = null, $referencedId = null, $fields = '*')
-    {
-        if (!isset($this->hasMany[$className])) {
-            if (!class_exists($className)) {
-                throw new HomelyException("Class {$className} not found");
-            }
-
-            /** @var HomelyModel $class */
-            $class = new $className;
-
-            if ($primaryId == null) {
-                $primaryId = $this->getPrimaryKey();
-            }
-
-            if ($referencedId == null) {
-                $referencedId = $this->tableName.'_'.$class->getPrimaryKey();
-            }
-
-            $this->hasMany[$className] = [
-                'class' => $class,
-                'primaryId' => $primaryId,
-                'referencedId' => $referencedId,
-                'fields' => $fields
-            ];
-        }
-    }
-
-    public function hasMany($className, $primaryId = null, $referencedId = null, $fields = '*')
-    {
-        $this->setHasMany($className, $primaryId, $referencedId, $fields);
-
-        /** @var HomelyModel $class */
-        $class = $this->hasMany[$className]['class'];
-
-        $primaryId = $this->hasMany[$className]['primaryId'];
-        $referencedId = $this->hasMany[$className]['referencedId'];
-        $fields = $this->hasMany[$className]['fields'];
-
-        $data = $class->getQueryBuilder()
-            ->select($fields)
-            ->from($class->tableName)
-            ->where($class->getQueryBuilder()->expr()->eq($referencedId, ':id'))
-            ->setParameter('id', (int)$this->{$primaryId})
-            ->execute()
-            ->fetchAll();
-
-        return $class->allToModel($data);
     }
 
     public function beginTransaction()

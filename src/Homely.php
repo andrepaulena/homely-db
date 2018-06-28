@@ -109,13 +109,11 @@ class Homely
     {
         $queryBuilder = $this->getQueryBuilder();
 
-        $data = $queryBuilder
+        return $queryBuilder
             ->select($criteria)
             ->from($this->tableName)
             ->execute()
-            ->fetchAll();
-
-        return $this->allToModel($data);
+            ->fetchAll(FetchMode::CUSTOM_OBJECT, get_called_class());
     }
 
     public function prepareFields()
@@ -128,13 +126,6 @@ class Homely
         }
 
         return implode(', ', $fields);
-    }
-
-    public function allToModel($data)
-    {
-        return array_map(function ($row) {
-            return $this->populateFromDb($row);
-        }, $data);
     }
 
     public function getAllInArray($criteria = '*')
@@ -160,10 +151,10 @@ class Homely
             ->where($queryBuilder->expr()->eq($this->primaryKey, ':id'))
             ->setParameter('id', $id)
             ->execute()
-            ->fetch();
+            ->fetchAll(FetchMode::CUSTOM_OBJECT, get_called_class());
 
-        if ($data) {
-            return $this->populateFromDb($data);
+        if($data) {
+            return $data[0];
         }
 
         return false;
@@ -266,7 +257,7 @@ class Homely
         return new \ReflectionClass($class);
     }
 
-    private function toCamelCase($string)
+    protected function toCamelCase($string)
     {
         $string = str_replace('_', ' ', $string);
         $string = lcfirst(ucwords($string));

@@ -3,7 +3,7 @@
     "description": "it's not a ORM, this crazy thing only use models on a Doctrine Dbal as querybuilder, generate some models from your DB and just it",
     "require": {
         "php": "^7.1",
-        "doctrine/dbal": "^2.7"
+        "doctrine/dbal": "^2.9"
     },
     "autoload": {
         "psr-4": {

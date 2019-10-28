@@ -23,6 +23,7 @@ class Homely
             $this->tableName = $this->tableNameFactory();
         }
 
+
         if (!empty($data)) {
             $this->populateFromArray($data);
         }
@@ -51,7 +52,6 @@ class Homely
     private function tableNameFactory()
     {
         $class = get_called_class();
-        $class = (substr_replace($class, '', 0, strrpos($class, '\\') + 1));
         $class = str_replace('Model', '', $class);
 
         return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $class));
@@ -153,7 +153,7 @@ class Homely
             ->execute()
             ->fetchAll(FetchMode::CUSTOM_OBJECT, get_called_class());
 
-        if($data) {
+        if ($data) {
             return $data[0];
         }
 
@@ -207,7 +207,7 @@ class Homely
 
     public function toArray()
     {
-        $fields = $this->getReflectionClass($this)->getProperties(\ReflectionProperty::IS_PUBLIC);
+        $fields = $this->getReflectionClass($this)->getProperties();
 
         $return = [];
 
